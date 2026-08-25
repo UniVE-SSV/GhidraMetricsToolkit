@@ -32,27 +32,32 @@ public class RopSurvivalScript extends GhidraScript {
     protected void run() throws Exception {
 
         if (currentProgram == null) {
-            printerr("no current program");
+            printerr("Program not found");
             return;
         }
 
         String csvPath = null;
 
-        Program p2;
+        Program program2;
 
         if (isRunningHeadless()) {
             ScriptArgs args = new ScriptArgs();
             CommandLine cmd = new CommandLine(args);
             cmd.parseArgs(getScriptArgs());
 
-            p2 = ProjectUtils.getProgramByName(state.getProject(), args.programName);
+            program2 = ProjectUtils.getProgramByName(state.getProject(), args.programName);
             csvPath = args.csvPath;
             depth = args.depth;
         } else {
-            p2 = askProgram("Pick second program");
+            program2 = askProgram("Pick second program");
         }
 
-        RopSurvival ropSurvival = new RopSurvival(currentProgram, p2, depth);
+        if (program2 == null) {
+            printerr("Second program not found");
+            return;
+        }
+
+        RopSurvival ropSurvival = new RopSurvival(currentProgram, program2, depth);
         RopSurvival.Result result = (RopSurvival.Result) ropSurvival.compute();
 
         if (result == null) {

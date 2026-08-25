@@ -33,7 +33,7 @@ public class JaroWinklerScript extends GhidraScript {
     @Override
     protected void run() throws Exception {
         if (currentProgram == null) {
-            printerr("~ current program");
+            printerr("Program not found");
             return;
         }
 
@@ -54,6 +54,11 @@ public class JaroWinklerScript extends GhidraScript {
             weighted = args.weighted;
         } else {
             program2 = askProgram("Pick second program");
+        }
+
+        if (program2 == null) {
+            printerr("Second program not found");
+            return;
         }
 
         Similarity jaroWinklerSimilarity = new Similarity(currentProgram, program2, new JaroWinkler());

@@ -48,7 +48,7 @@ public class NcdScript extends GhidraScript {
             return;
         }
 
-        Program p2;
+        Program program2;
         String csvPath = null;
         boolean binaryOnly = false;
         boolean exclusive = false;
@@ -60,7 +60,7 @@ public class NcdScript extends GhidraScript {
             CommandLine cmd = new CommandLine(args);
             cmd.parseArgs(getScriptArgs());
 
-            p2 = ProjectUtils.getProgramByName(state.getProject(), args.programName);
+            program2 = ProjectUtils.getProgramByName(state.getProject(), args.programName);
             csvPath = args.csvPath;
             binaryOnly = args.binaryOnly;
             exclusive = args.exclusive;
@@ -68,16 +68,16 @@ public class NcdScript extends GhidraScript {
             weighted = args.weighted;
 
         } else {
-            p2 = askProgram("Pick second program");
+            program2 = askProgram("Pick second program");
         }
 
-        if (p2 == null) {
-            printerr("second program not found");
+        if (program2 == null) {
+            printerr("Second program not found");
             return;
         }
 
         if (!binaryOnly) {
-            Similarity ncdSimilarity = new Similarity(currentProgram, p2, new Ncd());
+            Similarity ncdSimilarity = new Similarity(currentProgram, program2, new Ncd());
             SimilarityResult result = ncdSimilarity.getOverallSimilarity(exclusive, weighted, symmetric);
 
             if (result == null) {
@@ -100,11 +100,11 @@ public class NcdScript extends GhidraScript {
             }
         } else {
             Ncd ncd = new Ncd();
-            double res = ncd.computeBinarySimilarity(currentProgram, p2);
+            double res = ncd.computeBinarySimilarity(currentProgram, program2);
 
             if (csvPath != null) {
                 CsvExporter csvExporter = new CsvExporter(csvPath, "Program 1,Program 2,Similarity");
-                csvExporter.exportData(currentProgram.getName() + "," + p2.getName() + "," + res);
+                csvExporter.exportData(currentProgram.getName() + "," + program2.getName() + "," + res);
             }
         }
     }

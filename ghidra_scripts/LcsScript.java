@@ -39,7 +39,7 @@ public class LcsScript extends GhidraScript {
     protected void run() throws Exception {
 
         if (currentProgram == null) {
-            printerr("~ current program");
+            printerr("Program not found");
             return;
         }
 
@@ -60,6 +60,11 @@ public class LcsScript extends GhidraScript {
             weighted = args.weighted;
         } else {
             program2 = askProgram("Pick second program");
+        }
+
+        if (program2 == null) {
+            printerr("Second program not found");
+            return;
         }
 
         Similarity lcs = new Similarity(currentProgram, program2, new Lcs());

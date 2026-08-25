@@ -31,7 +31,7 @@ public class HalsteadScript extends GhidraScript {
         CommandLine cmd = new CommandLine(args);
         cmd.parseArgs(getScriptArgs());
 
-        Function currentFunction = currentProgram.getFunctionManager().getFunctionAt(currentAddress);
+        Function currentFunction = currentProgram.getFunctionManager().getFunctionContaining(currentAddress);
         Halstead halstead = new Halstead(currentProgram, currentFunction);
         Halstead.Result result = (Halstead.Result) halstead.compute();
         printf(result.toString());

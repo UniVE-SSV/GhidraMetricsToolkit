@@ -33,7 +33,7 @@ public class JaccardScript extends GhidraScript {
     @Override
     protected void run() throws Exception {
         if (currentProgram == null) {
-            printerr("~ current program");
+            printerr("Program not found");
             return;
         }
 
@@ -54,6 +54,11 @@ public class JaccardScript extends GhidraScript {
             weighted = args.weighted;
         } else {
             program2 = askProgram("Pick second program");
+        }
+
+        if (program2 == null) {
+            printerr("Second program not found");
+            return;
         }
 
         Similarity jaccardSimilarity = new Similarity(currentProgram, program2, new Jaccard());

@@ -94,4 +94,4 @@ buildExtension.exclude '.idea/**'
 buildExtension.dependsOn shadowJar
 
 // Add the ghidra_scripts dir to the java sources
-sourceSets.main.java.srcDirs += ['ghidra_scripts']
+// sourceSets.main.java.srcDirs += ['ghidra_scripts']
