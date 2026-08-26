@@ -16,14 +16,13 @@ public class EntropyGui {
     private static final String[] columnNames = {"Section", "Entropy"};
 
     private final JPanel panel;
-    private final GhidraMetricsToolkitPlugin plugin;
 
     private final JLabel binaryResult;
     private final JTextField baseInput;
+    private final DefaultTableModel tableModelProgram;
 
     public EntropyGui(GhidraMetricsToolkitPlugin plugin) {
 
-        this.plugin = plugin;
         panel = new JPanel(new BorderLayout());
 
         JPanel topPanel = new JPanel(new BorderLayout());
@@ -52,7 +51,7 @@ public class EntropyGui {
         topPanel.add(inputPanel, BorderLayout.NORTH);
         topPanel.add(outputPanel, BorderLayout.CENTER);
 
-        DefaultTableModel tableModelProgram = new DefaultTableModel(columnNames, 0) {
+        tableModelProgram = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
@@ -83,6 +82,11 @@ public class EntropyGui {
             tableModelProgram.setRowCount(0);
             try {
                 int baseValue = Integer.parseInt(baseInput.getText());
+                if (baseValue <= 1) {
+                    binaryResult.setText("Base must be > 1");
+                    tableModelProgram.setRowCount(0);
+                    return;
+                }
                 Entropy entropy = new Entropy(plugin.getCurrentProgram(), baseValue);
                 Entropy.Result result = (Entropy.Result) entropy.compute();
                 for (var l : result.sectionEntropy) {
@@ -94,17 +98,12 @@ public class EntropyGui {
                 tableModelProgram.setRowCount(0);
             }
         });
-
-        panel.putClientProperty("tableModel", tableModelProgram);
     }
 
     public void resetTable() {
-        DefaultTableModel tableModel = (DefaultTableModel) panel.getClientProperty("tableModel");
-        if (tableModel != null) {
-            tableModel.setRowCount(0);
-            binaryResult.setText("N/A");
-            baseInput.setText("2");
-        }
+        tableModelProgram.setRowCount(0);
+        binaryResult.setText("N/A");
+        baseInput.setText("2");
     }
 
     public JPanel getPanel() {

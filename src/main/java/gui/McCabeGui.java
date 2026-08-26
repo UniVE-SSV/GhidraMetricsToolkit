@@ -17,6 +17,7 @@ public class McCabeGui {
     private final GhidraMetricsToolkitPlugin plugin;
 
     private final JLabel complexityResult;
+    private final DefaultTableModel tableModelProgram;
 
     public McCabeGui(GhidraMetricsToolkitPlugin plugin) {
 
@@ -32,7 +33,8 @@ public class McCabeGui {
         JButton button = new JButton(Icons.REFRESH_ICON);
         topPanel.add(button, BorderLayout.EAST);
 
-        DefaultTableModel tableModelProgram = new DefaultTableModel(columnNames, 0) {
+
+        tableModelProgram = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
@@ -46,23 +48,23 @@ public class McCabeGui {
             tableModelProgram.setRowCount(0);
             McCabe mcCabe = new McCabe(plugin.getCurrentProgram());
             McCabe.Result result = (McCabe.Result) mcCabe.compute();
+            if (result == null) {
+                complexityResult.setText("N/A");
+                return;
+            }
             complexityResult.setText(Integer.toString(result.complexity));
 
             for (var l : result.functionComplexity) {
                 tableModelProgram.addRow(new Object[] {l.first, l.second});
             }
         });
-        panel.putClientProperty("tableModel", tableModelProgram);
         panel.add(topPanel, BorderLayout.NORTH);
         panel.add(tableScrollPane, BorderLayout.CENTER);
     }
 
     public void resetTable() {
-        DefaultTableModel tableModel = (DefaultTableModel) panel.getClientProperty("tableModel");
-        if (tableModel != null) {
-            tableModel.setRowCount(0);
-            complexityResult.setText("N/A");
-        }
+        tableModelProgram.setRowCount(0);
+        complexityResult.setText("N/A");
     }
 
     public JPanel getPanel() {
