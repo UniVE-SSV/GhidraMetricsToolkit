@@ -55,6 +55,9 @@ public class FunctionUtils {
         int tx = targetProgram.startTransaction("Rename Functions");
         try {
             for (Pair<Function, String> replacement : replacements) {
+                if (replacement.first == null) {
+                    continue;
+                }
                 replacement.first.setName(replacement.second, SourceType.USER_DEFINED);
             }
         } catch (InvalidInputException | DuplicateNameException e) {

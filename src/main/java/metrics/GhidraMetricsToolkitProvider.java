@@ -55,6 +55,14 @@ public class GhidraMetricsToolkitProvider extends ComponentProviderAdapter {
         similarityGui.resetPanel();
     }
 
+    public void handleProgramDeactivated() {
+        halsteadGui.reset();
+        entropyGui.resetTable();
+        mcCabeGui.resetTable();
+        ropSimilarityGui.resetGui();
+        similarityGui.resetPanel();
+    }
+
     public void handleLocationChanged() {
         halsteadGui.populateFunctionTable();
     }

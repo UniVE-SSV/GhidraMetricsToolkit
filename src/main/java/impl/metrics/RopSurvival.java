@@ -1,6 +1,8 @@
 package impl.metrics;
 
 import ghidra.program.model.listing.Program;
+import ghidra.util.exception.CancelledException;
+import ghidra.util.task.TaskMonitor;
 import impl.common.MetricInterface;
 import impl.common.Pair;
 import impl.common.ResultInterface;
@@ -8,7 +10,7 @@ import impl.utils.RopGadgetWrapper;
 
 import java.util.*;
 
-public class RopSurvival implements MetricInterface {
+public class RopSurvival implements MetricInterface<RopSurvival.Result> {
 
     private final Program program1;
     private final Program program2;
@@ -24,40 +26,63 @@ public class RopSurvival implements MetricInterface {
         this(program1, program2, 10);
     }
 
-    private double bagOfGadgetsSimilarity() {
-        try {
-            HashMap<Long, String> gadgets1 = RopGadgetWrapper.getRops(program1, depth);
-            HashMap<Long, String> gadgets2 = RopGadgetWrapper.getRops(program2, depth);
-
-            Set<String> intersection = new HashSet<>(gadgets1.values());
-            int size = intersection.size();
-            intersection.retainAll(gadgets2.values());
-
-            return (double) intersection.size() / size;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private double survivorSimilarity() {
-        try {
-            HashMap<Long, String> gadgets1 = RopGadgetWrapper.getRops(program1, depth);
-            HashMap<Long, String> gadgets2 = RopGadgetWrapper.getRops(program2, depth);
-
-            int len = gadgets1.size();
-            gadgets1.entrySet().retainAll(gadgets2.entrySet());
-
-            return (double) gadgets1.size() / len;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     @Override
-    public ResultInterface compute() {
-        if (program1.getLanguage().getProcessor() != program2.getLanguage().getProcessor())
+    public Result compute() {
+        try {
+            return compute(TaskMonitor.DUMMY);
+        } catch (CancelledException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Result compute(TaskMonitor monitor) throws CancelledException {
+        if (!program1.getLanguage().getProcessor().equals(program2.getLanguage().getProcessor()))
             return null;
-        return new Result(this.program1, this.program2, bagOfGadgetsSimilarity(), survivorSimilarity());
+
+        // The gadget sets are extracted once and reused for both variants
+        monitor.setMaximum(2);
+        monitor.setMessage("Extracting gadgets from " + program1.getName() + "...");
+        HashMap<Long, String> gadgets1 = extractRops(program1, monitor);
+        monitor.setProgress(1);
+        monitor.setMessage("Extracting gadgets from " + program2.getName() + "...");
+        HashMap<Long, String> gadgets2 = extractRops(program2, monitor);
+        monitor.setProgress(2);
+
+        monitor.setMessage("Comparing gadgets...");
+        double bag = bagOfGadgetsSimilarity(gadgets1, gadgets2);
+        double survivor = survivorSimilarity(gadgets1, gadgets2);
+        return new Result(this.program1, this.program2, bag, survivor);
+    }
+
+    private HashMap<Long, String> extractRops(Program program, TaskMonitor monitor) throws CancelledException {
+        try {
+            return RopGadgetWrapper.getRops(program, depth, monitor);
+        } catch (CancelledException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private double bagOfGadgetsSimilarity(HashMap<Long, String> gadgets1, HashMap<Long, String> gadgets2) {
+        Set<String> intersection = new HashSet<>(gadgets1.values());
+        int size = intersection.size();
+        if (size == 0) {
+            return 0.0;
+        }
+        intersection.retainAll(gadgets2.values());
+
+        return (double) intersection.size() / size;
+    }
+
+    private double survivorSimilarity(HashMap<Long, String> gadgets1, HashMap<Long, String> gadgets2) {
+        int len = gadgets1.size();
+        if (len == 0) {
+            return 0.0;
+        }
+        gadgets1.entrySet().retainAll(gadgets2.entrySet());
+
+        return (double) gadgets1.size() / len;
     }
 
     public static class Result implements ResultInterface {

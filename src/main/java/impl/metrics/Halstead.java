@@ -10,7 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 
 
-public class Halstead implements MetricInterface {
+public class Halstead implements MetricInterface<Halstead.Result> {
 
     private final Program program;
     private final Function function;
@@ -26,7 +26,7 @@ public class Halstead implements MetricInterface {
     }
 
     @Override
-    public ResultInterface compute() {
+    public Result compute() {
         int[] ops = halsteadByProgram();
         int[] fOps = null;
         if (this.function != null) {

@@ -16,6 +16,7 @@ public class EntropyGui {
     private static final String[] columnNames = {"Section", "Entropy"};
 
     private final JPanel panel;
+    private final GhidraMetricsToolkitPlugin plugin;
 
     private final JLabel binaryResult;
     private final JTextField baseInput;
@@ -23,6 +24,7 @@ public class EntropyGui {
 
     public EntropyGui(GhidraMetricsToolkitPlugin plugin) {
 
+        this.plugin = plugin;
         panel = new JPanel(new BorderLayout());
 
         JPanel topPanel = new JPanel(new BorderLayout());
@@ -88,7 +90,7 @@ public class EntropyGui {
                     return;
                 }
                 Entropy entropy = new Entropy(plugin.getCurrentProgram(), baseValue);
-                Entropy.Result result = (Entropy.Result) entropy.compute();
+                Entropy.Result result = entropy.compute();
                 for (var l : result.sectionEntropy) {
                     tableModelProgram.addRow(new Object[]{l.first, l.second});
                 }

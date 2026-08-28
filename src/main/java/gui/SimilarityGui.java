@@ -1,17 +1,14 @@
 package gui;
 
 import ghidra.app.services.GoToService;
-import ghidra.framework.model.DomainFile;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Program;
-import ghidra.util.Msg;
 import impl.common.Pair;
 import impl.common.Similarity;
 import impl.common.SimilarityInterface;
 import impl.common.SimilarityResult;
 import impl.metrics.*;
 import impl.utils.FunctionUtils;
-import impl.utils.ProjectUtils;
 import metrics.GhidraMetricsToolkitPlugin;
 import resources.Icons;
 
@@ -23,22 +20,26 @@ import java.awt.*;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.IOException;
+import java.net.URL;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class SimilarityGui {
 
     private static final String[] columnNames = {"Simil.", "Weight", "Current Program", "Compared Program"};
     private static final SimilarityInterface[] metrics = {new Jaccard(), new JaroWinkler(), new Levenshtein(), new Lcs(), new Ncd(), new OpcodeFrequency()};
+
     private final JPanel panel;
+    private final GhidraTaskRunner taskRunner;
+    private final ProgramPickerPanel programPicker;
     private final JComboBox<SimilarityInterface> metricChooser;
-    private final JComboBox<DomainFile> programChooser;
-    private final JCheckBox exclusive;
-    private final JCheckBox weighted;
-    private final JCheckBox symmetric;
+    private final JCheckBoxMenuItem exclusive;
+    private final JCheckBoxMenuItem weighted;
+    private final JCheckBoxMenuItem symmetric;
     private final JLabel overallSimilarity;
+    private final DefaultTableModel tableModel;
 
     private final GhidraMetricsToolkitPlugin plugin;
 
@@ -50,8 +51,9 @@ public class SimilarityGui {
         this.plugin = plugin;
 
         panel = new JPanel(new BorderLayout());
+        taskRunner = new GhidraTaskRunner(plugin.getTool(), panel);
 
-        DefaultTableModel tableModel = new DefaultTableModel(columnNames, 0) {
+        tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
@@ -157,56 +159,49 @@ public class SimilarityGui {
 
         JScrollPane scrollPane = new JScrollPane(table);
 
-        List<DomainFile> programFiles = ProjectUtils.getPrograms(plugin.getTool().getProject());
+        exclusive = new JCheckBoxMenuItem("Exclusive");
+        weighted = new JCheckBoxMenuItem("Weighted");
+        symmetric = new JCheckBoxMenuItem("Symmetric");
 
-        JPanel topPanel = new JPanel(new BorderLayout());
+        // Matching options are grouped behind a settings button
+        JPopupMenu optionsPopup = new JPopupMenu();
+        optionsPopup.add(exclusive);
+        optionsPopup.add(weighted);
+        optionsPopup.add(symmetric);
 
-        JPanel metricSelection = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JButton settingsButton = new JButton("Settings");
+        settingsButton.setToolTipText("Matching options");
+        settingsButton.addActionListener(e -> optionsPopup.show(settingsButton, 0, settingsButton.getHeight()));
+
         metricChooser = new JComboBox<>(metrics);
         metricChooser.setSelectedIndex(3);
+
+        // Top panel: the metric and output rows are wrapping FlowLayouts (labels
+        // keep their full text and wrap to a new line when narrow), while the
+        // program picker sits in the CENTER and flexes its text field instead of
+        // being clipped.
+        JPanel topPanel = new JPanel(new BorderLayout(4, 4));
+
+        JPanel metricSelection = new JPanel(new FlowLayout(FlowLayout.LEFT));
         metricSelection.add(new JLabel("Metric: "));
         metricSelection.add(metricChooser);
-
+        metricSelection.add(settingsButton);
         topPanel.add(metricSelection, BorderLayout.NORTH);
 
-        JPanel settingsPanel = new JPanel(new BorderLayout());
-
-        JPanel leftTopPanel = new JPanel(new BorderLayout());
-        JPanel rightTopPanel = new JPanel(new FlowLayout());
-
-        exclusive = new JCheckBox("Exclusive");
-        weighted = new JCheckBox("Weighted");
-        symmetric = new JCheckBox("Symmetric");
-
-        rightTopPanel.add(exclusive);
-        rightTopPanel.add(weighted);
-        rightTopPanel.add(symmetric);
-
-        JPanel inputPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JPanel outputPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        programPicker = new ProgramPickerPanel(plugin, this::computeMetrics);
+        topPanel.add(programPicker, BorderLayout.CENTER);
 
         overallSimilarity = new JLabel("N/A");
+        JPanel outputPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         outputPanel.add(new JLabel("Overall Similarity: "));
         outputPanel.add(overallSimilarity);
-
-
-        programChooser = new JComboBox<>();
-        for (DomainFile program : programFiles) {
-            programChooser.addItem(program);
-        }
-        programChooser.setSelectedIndex(-1);
-        programChooser.setVisible(true);
-
-        programChooser.addActionListener(e -> computeMetrics());
+        topPanel.add(outputPanel, BorderLayout.SOUTH);
 
         metricChooser.addActionListener(e -> computeMetrics());
 
         ActionListener checkBoxHandler = e -> {
-            if (programChooser.getSelectedIndex() >= 0 && similarity != null) {
-                lastResult = similarity.getOverallSimilarity(exclusive.isSelected(), weighted.isSelected(), symmetric.isSelected());
-                lastResult.sortBySimilarity();
-                overallSimilarity.setText(String.format("%.2f", lastResult.overallSimilarity));
-                populateTable();
+            if (programPicker.getSelectedFile() != null && similarity != null) {
+                recomputeOverallSimilarity();
             }
         };
 
@@ -214,24 +209,16 @@ public class SimilarityGui {
         weighted.addActionListener(checkBoxHandler);
         symmetric.addActionListener(checkBoxHandler);
 
-        inputPanel.add(new JLabel("Compare to: "));
-        inputPanel.add(programChooser);
-
-        leftTopPanel.add(inputPanel, BorderLayout.NORTH);
-        leftTopPanel.add(outputPanel, BorderLayout.CENTER);
-
-        settingsPanel.add(leftTopPanel, BorderLayout.WEST);
-        settingsPanel.add(rightTopPanel, BorderLayout.EAST);
-        topPanel.add(settingsPanel, BorderLayout.CENTER);
-
         panel.add(topPanel, BorderLayout.NORTH);
         panel.add(scrollPane, BorderLayout.CENTER);
 
         applyNameRight.addActionListener(evt -> {
             int[] selectedRows = table.getSelectedRows();
+            Program program = programPicker.getComparedProgram();
+            if (program == null) {
+                return;
+            }
             List<Pair<Function, String>> replacements = new ArrayList<>();
-            DomainFile choice = (DomainFile) programChooser.getSelectedItem();
-            Program program = ProjectUtils.getProgramFromDomainFile(choice);
 
             for (int selectedRow : selectedRows) {
                 int modelRow = table.convertRowIndexToModel(selectedRow);
@@ -262,46 +249,81 @@ public class SimilarityGui {
             FunctionUtils.applyNames(plugin.getCurrentProgram(), replacements);
             populateTable();
         });
-
-        panel.putClientProperty("tableModel", tableModel);
     }
 
     private void computeMetrics() {
-        try {
-            DomainFile choice = (DomainFile) programChooser.getSelectedItem();
-            if (choice != null) {
-                Program program = ProjectUtils.getProgramFromDomainFile(choice);
-                SimilarityInterface metric = (SimilarityInterface) metricChooser.getSelectedItem();
-                similarity = new Similarity(plugin.getCurrentProgram(), program, metric);
-                lastResult = similarity.getOverallSimilarity(exclusive.isSelected(), weighted.isSelected(), symmetric.isSelected());
-                lastResult.sortBySimilarity();
+        SimilarityInterface metric = (SimilarityInterface) metricChooser.getSelectedItem();
+        if (metric == null || programPicker.getSelectedFile() == null) {
+            return;
+        }
+        Program currentProgram = plugin.getCurrentProgram();
+        if (currentProgram == null) {
+            return;
+        }
+
+        overallSimilarity.setText("N/A");
+
+        // Run the (potentially very slow) pairwise computation in a Ghidra Task:
+        // it executes off the EDT and shows an integrated, cancellable progress dialog.
+        taskRunner.launch("Computing Similarity", (session, monitor) -> {
+            monitor.setMessage("Loading compared program...");
+            Program program = programPicker.loadComparedProgram(monitor);
+            if (program == null) {
+                throw new IOException("Could not load the selected program");
+            }
+
+            Similarity sim = new Similarity(currentProgram, program, metric, monitor);
+            monitor.setMessage("Computing overall similarity...");
+            SimilarityResult res = sim.getOverallSimilarity(exclusive.isSelected(), weighted.isSelected(), symmetric.isSelected(), monitor);
+            res.sortBySimilarity();
+
+            session.runOnUi(() -> {
+                similarity = sim;
+                lastResult = res;
+                programPicker.setComparedProgram(program);
                 overallSimilarity.setText(String.format("%.2f", lastResult.overallSimilarity));
                 populateTable();
-            }
-        } catch (Exception ex) {
-            Msg.showError(getClass(), panel, "Metric computation failed!", Arrays.toString(ex.getStackTrace()));
-            overallSimilarity.setText("N/A");
-            programChooser.setSelectedIndex(-1);
+            });
+        });
+    }
+
+    private void recomputeOverallSimilarity() {
+        Similarity sim = similarity;
+        if (sim == null) {
+            return;
         }
+
+        // Matching/overall similarity can be slow (Hungarian matching, NCD binary
+        // compression), so run it in a Ghidra Task with progress and cancellation.
+        taskRunner.launch("Computing Overall Similarity", (session, monitor) -> {
+            monitor.setMessage("Matching functions...");
+            SimilarityResult res = sim.getOverallSimilarity(exclusive.isSelected(), weighted.isSelected(), symmetric.isSelected(), monitor);
+            res.sortBySimilarity();
+
+            session.runOnUi(() -> {
+                lastResult = res;
+                overallSimilarity.setText(String.format("%.2f", lastResult.overallSimilarity));
+                populateTable();
+            });
+        });
     }
 
     public void populateTable() {
-        DefaultTableModel tableModel = (DefaultTableModel) panel.getClientProperty("tableModel");
-        if (tableModel != null) {
-            tableModel.setRowCount(0);
-            for (Object[] row : lastResult.getFunctionSimilarities()) {
-                tableModel.addRow(row);
-            }
+        if (lastResult == null) {
+            return;
+        }
+        tableModel.setRowCount(0);
+        for (Object[] row : lastResult.getFunctionSimilarities()) {
+            tableModel.addRow(row);
         }
     }
 
     public void resetPanel() {
-        DefaultTableModel tableModel = (DefaultTableModel) panel.getClientProperty("tableModel");
-        if (tableModel != null) {
-            tableModel.setRowCount(0);
-            programChooser.setSelectedIndex(-1);
-        }
+        tableModel.setRowCount(0);
+        taskRunner.invalidate();
+        programPicker.reset();
         lastResult = null;
+        similarity = null;
         metricChooser.setSelectedIndex(3);
         overallSimilarity.setText("N/A");
         exclusive.setSelected(false);

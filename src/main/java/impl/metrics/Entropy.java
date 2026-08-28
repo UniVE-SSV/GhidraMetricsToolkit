@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 
-public class Entropy implements MetricInterface {
+public class Entropy implements MetricInterface<Entropy.Result> {
 
     private final Program program;
     private final int base;
@@ -53,7 +53,7 @@ public class Entropy implements MetricInterface {
 
             StringBuilder functionEntropyBuilder = new StringBuilder();
             for (var f : sectionEntropy) {
-                functionEntropyBuilder.append(f.first).append(",").append(f.second);
+                functionEntropyBuilder.append(f.first).append(",").append(f.second).append("\n");
             }
 
             Pair<String, String> functionData = new Pair<>("Function,Entropy", functionEntropyBuilder.toString());
@@ -71,7 +71,7 @@ public class Entropy implements MetricInterface {
             int maxLength = sectionEntropy.stream().mapToInt(p -> p.first.length()).max().orElse(20);
             builder.append("Entropy by section:\n");
             builder.append("-".repeat(maxLength)).append("-+-").append("-".repeat(10)).append("\n");
-            builder.append(String.format("%" + maxLength + "s | %s\n", "Entropy", "Section"));
+            builder.append(String.format("%" + maxLength + "s | %s\n", "Section", "Entropy"));
             builder.append("-".repeat(maxLength)).append("-+-").append("-".repeat(10)).append("\n");
 
             for (Pair<String, Double> section : sectionEntropy) {
@@ -83,7 +83,7 @@ public class Entropy implements MetricInterface {
     }
 
     @Override
-    public ResultInterface compute() {
+    public Result compute() {
         return new Result(this.program, binaryEntropy(), entropyBySection());
     }
 
@@ -118,7 +118,7 @@ public class Entropy implements MetricInterface {
         }
     }
 
-    private double computeEntropy(byte[] data) throws IOException {
+    double computeEntropy(byte[] data) throws IOException {
 
         int[] freq = new int[0x100];
         for (byte b : data) {

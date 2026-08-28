@@ -19,10 +19,39 @@ import java.util.List;
 public class ProjectUtils {
 
     public static File exportProgram(Program program) throws CancelledException, IOException, VersionException, ExporterException {
-        File f = new File("export_" + program.getName());
+        File f = File.createTempFile("gmt_export_" + sanitize(program.getName()) + "_", ".bin");
         OriginalFileExporter exporter = new OriginalFileExporter();
-        exporter.export(f, program.getDomainFile().getDomainObject(DomainFile.DEFAULT_VERSION, false, false, TaskMonitor.DUMMY), null, null);
+        try {
+            exporter.export(f, program, null, TaskMonitor.DUMMY);
+        } catch (IOException e) {
+            f.delete();
+            throw e;
+        }
         return f;
+    }
+
+    private static String sanitize(String name) {
+        return name.replaceAll("[^a-zA-Z0-9._-]", "_");
+    }
+
+    public static Program getProgramFromDomainFile(DomainFile domainFile, Object requestor, TaskMonitor monitor) {
+        try {
+            DomainObject domainObject = domainFile.getDomainObject(requestor, false, false, monitor);
+            if (domainObject instanceof Program) {
+                return (Program) domainObject;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (CancelledException | VersionException e) {
+            throw new RuntimeException(e);
+        }
+        return null;
+    }
+
+    public static void releaseProgram(Program program, Object requestor) {
+        if (program != null) {
+            program.release(requestor);
+        }
     }
 
     public static Program getProgramByName(Project project, String programName) {
@@ -32,7 +61,7 @@ public class ProjectUtils {
         List<DomainFile> programs = getPrograms(project);
         for (var p : programs) {
             if (p.getPathname().equals(programName)) {
-                return getProgramFromDomainFile(p);
+                return getProgramFromDomainFile(p, p, TaskMonitor.DUMMY);
             }
         }
         return null;
@@ -53,23 +82,5 @@ public class ProjectUtils {
         for (DomainFolder subFolder : folder.getFolders()) {
             getProgramList(subFolder, programFiles);
         }
-    }
-
-    public static Program getProgramFromDomainFile(DomainFile domainFile) {
-
-        Program program = null;
-
-        try {
-            DomainObject domainObject = domainFile.getDomainObject(DomainFile.DEFAULT_VERSION, false, false, TaskMonitor.DUMMY);
-            if (domainObject instanceof Program) {
-                program = (Program) domainObject;
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (CancelledException | VersionException e) {
-            throw new RuntimeException(e);
-        }
-
-        return program;
     }
 }

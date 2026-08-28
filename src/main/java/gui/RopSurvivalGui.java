@@ -1,21 +1,21 @@
 package gui;
 
-import ghidra.framework.model.DomainFile;
 import ghidra.program.model.listing.Program;
 import ghidra.util.Msg;
+import ghidra.util.exception.CancelledException;
+import ghidra.util.task.TaskMonitor;
 import impl.metrics.RopSurvival;
 import metrics.GhidraMetricsToolkitPlugin;
-import impl.utils.ProjectUtils;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.List;
+import java.io.IOException;
 
 public class RopSurvivalGui {
 
     private final JPanel panel;
-    private final GhidraMetricsToolkitPlugin plugin;
-    private final JComboBox<DomainFile> programChooser;
+    private final GhidraTaskRunner taskRunner;
+    private final ProgramPickerPanel programPicker;
     private final JLabel bagOfGadgetsResult;
     private final JLabel survivorResult;
     private final JTextField depthField;
@@ -24,10 +24,13 @@ public class RopSurvivalGui {
         this.plugin = plugin;
 
         panel = new JPanel(new BorderLayout());
+        taskRunner = new GhidraTaskRunner(plugin.getTool(), panel);
 
-        List<DomainFile> programFiles = ProjectUtils.getPrograms(plugin.getTool().getProject());
-
-        JPanel topPanel = new JPanel(new BorderLayout());
+        // The program picker sits in the CENTER and flexes its text field; the
+        // depth field is in the EAST at its natural size (BorderLayout never
+        // shrinks EAST components, so the field stays on the same line as its
+        // label and is not clipped until the window is extremely narrow).
+        JPanel topPanel = new JPanel(new BorderLayout(4, 4));
 
         JPanel depthChooserPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         depthChooserPanel.add(new JLabel("Depth: "));
@@ -35,19 +38,9 @@ public class RopSurvivalGui {
         depthField = new JTextField("10", 4);
         depthChooserPanel.add(depthField);
 
-        JPanel programChooserPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        programChooser = new JComboBox<>();
-        for (DomainFile program : programFiles) {
-            programChooser.addItem(program);
-        }
-        programChooser.setSelectedIndex(-1);
-        programChooser.setVisible(true);
+        programPicker = new ProgramPickerPanel(plugin, this::runComputation);
 
-
-        programChooserPanel.add(new JLabel("Compare to: "));
-        programChooserPanel.add(programChooser);
-
-        topPanel.add(programChooserPanel, BorderLayout.WEST);
+        topPanel.add(programPicker, BorderLayout.CENTER);
         topPanel.add(depthChooserPanel, BorderLayout.EAST);
 
         JPanel resultsPanel = new JPanel(new BorderLayout());
@@ -65,32 +58,65 @@ public class RopSurvivalGui {
         resultsPanel.add(bagOfGadgetsPanel, BorderLayout.NORTH);
         resultsPanel.add(survivorPanel, BorderLayout.CENTER);
 
-        programChooser.addActionListener(e -> {
-            try {
-                DomainFile choice = (DomainFile) programChooser.getSelectedItem();
-                if (choice != null) {
-                    Program program = ProjectUtils.getProgramFromDomainFile(choice);
-
-                    RopSurvival ropSurvival = new RopSurvival(plugin.getCurrentProgram(), program);
-                    RopSurvival.Result result = (RopSurvival.Result) ropSurvival.compute();
-
-                    bagOfGadgetsResult.setText(result.bagOfGadgets + "");
-                    survivorResult.setText(result.survivor + "");
-                }
-            } catch (Exception ex) {
-                Msg.showError(getClass(), panel, "Metric computation failed!", ex.getMessage());
-                programChooser.setSelectedIndex(-1);
-            }
-        });
-
         panel.add(topPanel, BorderLayout.NORTH);
         panel.add(resultsPanel, BorderLayout.CENTER);
+    }
+
+    private final GhidraMetricsToolkitPlugin plugin;
+
+    private void runComputation() {
+        if (programPicker.getSelectedFile() == null) {
+            return;
+        }
+
+        int depth;
+        try {
+            depth = Integer.parseInt(depthField.getText());
+        } catch (NumberFormatException ex) {
+            Msg.showError(getClass(), panel, "Invalid depth", "Depth must be an integer.");
+            return;
+        }
+        if (depth < 1) {
+            Msg.showError(getClass(), panel, "Invalid depth", "Depth must be greater than zero.");
+            return;
+        }
+
+        Program currentProgram = plugin.getCurrentProgram();
+        if (currentProgram == null) {
+            return;
+        }
+
+        bagOfGadgetsResult.setText("N/A");
+        survivorResult.setText("N/A");
+
+        taskRunner.launch("Computing ROP Survival", (session, monitor) -> {
+            monitor.setMessage("Loading compared program...");
+            Program program = programPicker.loadComparedProgram(monitor);
+            if (program == null) {
+                throw new IOException("Could not load the selected program");
+            }
+
+            RopSurvival ropSurvival = new RopSurvival(currentProgram, program, depth);
+            RopSurvival.Result result = ropSurvival.compute(monitor);
+
+            session.runOnUi(() -> {
+                programPicker.setComparedProgram(program);
+                if (result == null) {
+                    Msg.showError(getClass(), panel, "Metric computation failed!",
+                            "The programs use different processors.");
+                    return;
+                }
+                bagOfGadgetsResult.setText(result.bagOfGadgets + "");
+                survivorResult.setText(result.survivor + "");
+            });
+        });
     }
 
     public void resetGui() {
         bagOfGadgetsResult.setText("N/A");
         survivorResult.setText("N/A");
-        programChooser.setSelectedIndex(-1);
+        taskRunner.invalidate();
+        programPicker.reset();
         depthField.setText("10");
     }
 

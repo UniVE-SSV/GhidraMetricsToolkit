@@ -2,8 +2,9 @@ package impl.common;
 
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Program;
+import ghidra.util.exception.CancelledException;
+import ghidra.util.task.TaskMonitor;
 import impl.metrics.Ncd;
-import impl.utils.HungarianAlgorithm;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,11 +19,17 @@ public class Similarity {
     private final Program program1;
     private final Program program2;
     private final SimilarityInterface metric;
+    private final TaskMonitor monitor;
 
-    public Similarity(Program program1, Program program2, SimilarityInterface metric) {
+    public Similarity(Program program1, Program program2, SimilarityInterface metric) throws CancelledException {
+        this(program1, program2, metric, TaskMonitor.DUMMY);
+    }
+
+    public Similarity(Program program1, Program program2, SimilarityInterface metric, TaskMonitor monitor) throws CancelledException {
 
         this.program1 = program1;
         this.program2 = program2;
+        this.monitor = monitor;
 
         functions1 = new ArrayList<>();
         functions2 = new ArrayList<>();
@@ -42,8 +49,9 @@ public class Similarity {
         }
 
         // Normalize the size of the functions of program1
+        double normalizer1 = Math.max(totalWeight, 1.0);
         for (int i = 0; i < weights1.size(); i++) {
-            weights1.set(i, weights1.get(i) / totalWeight);
+            weights1.set(i, weights1.get(i) / normalizer1);
         }
 
         // Get functions of program2 and their size
@@ -58,8 +66,9 @@ public class Similarity {
         }
 
         // Normalize the size of the functions of program2
+        double normalizer2 = Math.max(totalWeight, 1.0);
         for (int i = 0; i < weights2.size(); i++) {
-            weights2.set(i, weights2.get(i) / totalWeight);
+            weights2.set(i, weights2.get(i) / normalizer2);
         }
 
         similarity = new double[functions1.size()][functions2.size()];
@@ -68,129 +77,44 @@ public class Similarity {
         computePairwiseSimilarity();
     }
 
-    private void computePairwiseSimilarity() {
+    private void computePairwiseSimilarity() throws CancelledException {
+        monitor.setMaximum(Math.max(functions1.size(), 1));
+        monitor.setMessage("Computing pairwise function similarity...");
         for (int i = 0; i < functions1.size(); i++) {
+            if (monitor.isCancelled()) {
+                throw new CancelledException();
+            }
+            monitor.setProgress(i);
             for (int j = 0; j < functions2.size(); j++) {
                 similarity[i][j] = metric.compute(functions1.get(i), functions2.get(j));
             }
         }
     }
 
-    private SimilarityResult nonExclusiveMatching(boolean weighted, boolean symmetric) {
-
-        SimilarityResult result = new SimilarityResult(program1, program2);
-
-        double overallSimilarity = 0;
-        for (int i = 0; i < functions1.size(); i++) {
-            double maxSimilarity = 0;
-            int maxIndex = -1;
-            for (int j = 0; j < functions2.size(); j++) {
-                if (similarity[i][j] >= maxSimilarity) {
-                    maxSimilarity = similarity[i][j];
-                    maxIndex = j;
-                }
-            }
-            if (weighted) {
-                result.addFunctionSimilarity(functions1.get(i), functions2.get(maxIndex), maxSimilarity, weights1.get(i));
-                overallSimilarity += maxSimilarity * weights1.get(i);
-            } else {
-                result.addFunctionSimilarity(functions1.get(i), functions2.get(maxIndex), maxSimilarity);
-                overallSimilarity += maxSimilarity;
-            }
-        }
-        if (!weighted) {
-            overallSimilarity /= functions1.size();
-        }
-        if (symmetric) {
-            double inverseSimilarity = 0;
-            for (int j = 0; j < functions2.size(); j++) {
-                double maxSimilarity = 0;
-                for (int i = 0; i < functions1.size(); i++) {
-                    maxSimilarity = Math.max(maxSimilarity, similarity[i][j]);
-                }
-                inverseSimilarity += maxSimilarity * ((weighted) ? weights2.get(j) : 1);
-            }
-            if (!weighted) {
-                inverseSimilarity /= functions2.size();
-            }
-            overallSimilarity = (overallSimilarity + inverseSimilarity) / 2;
-        }
-        result.setOverallSimilarity(overallSimilarity);
-        return result;
+    private MatchingContext context() {
+        return new MatchingContext(program1, program2, functions1, functions2, weights1, weights2, similarity);
     }
 
-    private SimilarityResult exclusiveMatching(boolean weighted, boolean symmetric) {
-
-        SimilarityResult result = new SimilarityResult(program1, program2);
-
-        double overallSimilarity = 0;
-        if (!weighted) {
-            int[] matches = HungarianAlgorithm.compute(similarity);
-            for (int i = 0; i < matches.length; i++) {
-                if (i < similarity.length) {
-                    if (matches[i] >= 0 && matches[i] < similarity[0].length) {
-                        result.addFunctionSimilarity(functions1.get(i), functions2.get(matches[i]), similarity[i][matches[i]]);
-                        overallSimilarity += similarity[i][matches[i]];
-                    } else {
-                        result.addFunctionSimilarity(functions1.get(i), null, null);
-                    }
-                } else {
-                    result.addFunctionSimilarity(null, functions2.get(matches[i]), null);
-                }
-            }
-            overallSimilarity = (symmetric) ? (2 * overallSimilarity) / (functions1.size() + functions2.size()) : overallSimilarity / functions1.size();
-            result.setOverallSimilarity(overallSimilarity);
-        } else {
-            double[][] weightedSimilarity = new double[similarity.length][similarity[0].length];
-            for (int i = 0; i < similarity.length; i++) {
-                for (int j = 0; j < similarity[0].length; j++) {
-                    weightedSimilarity[i][j] = similarity[i][j] * weights1.get(i);
-                }
-            }
-            int[] matches = HungarianAlgorithm.compute(weightedSimilarity);
-            for (int i = 0; i < matches.length; i++) {
-                if (i < similarity.length) {
-                    if (matches[i] >= 0 && matches[i] < similarity[0].length) {
-                        result.addFunctionSimilarity(functions1.get(i), functions2.get(matches[i]), similarity[i][matches[i]], weights1.get(i));
-                        overallSimilarity += weightedSimilarity[i][matches[i]];
-                    } else {
-                        result.addFunctionSimilarity(functions1.get(i), null, null, weights1.get(i));
-                    }
-                } else {
-                    result.addFunctionSimilarity(null, functions2.get(matches[i]), null);
-                }
-            }
-
-            if (symmetric) {
-                double inverseSimilarity = 0;
-                double[][] inverseWeightedSimilarity = new double[similarity.length][similarity[0].length];
-                for (int i = 0; i < similarity.length; i++) {
-                    for (int j = 0; j < similarity[0].length; j++) {
-                        inverseWeightedSimilarity[i][j] = similarity[i][j] * weights2.get(j);
-                    }
-                }
-                int[] inverseMatches = HungarianAlgorithm.compute(inverseWeightedSimilarity);
-                for (int i = 0; i < similarity.length; i++) {
-                    if (inverseMatches[i] >= 0 && inverseMatches[i] < similarity[0].length)
-                        inverseSimilarity += inverseWeightedSimilarity[i][inverseMatches[i]];
-                }
-
-                overallSimilarity = (overallSimilarity + inverseSimilarity) / 2;
-            }
-            result.setOverallSimilarity(overallSimilarity);
-        }
-        return result;
+    public SimilarityResult getOverallSimilarity(boolean exclusive, boolean weighted, boolean symmetric) throws CancelledException {
+        return getOverallSimilarity(exclusive, weighted, symmetric, TaskMonitor.DUMMY);
     }
 
-    // TODO Try other exclusive weighted method
-    public SimilarityResult getOverallSimilarity(boolean exclusive, boolean weighted, boolean symmetric) {
-        SimilarityResult result = (exclusive) ? exclusiveMatching(weighted, symmetric) : nonExclusiveMatching(weighted, symmetric);
+    public SimilarityResult getOverallSimilarity(boolean exclusive, boolean weighted, boolean symmetric, TaskMonitor monitor) throws CancelledException {
+        MatchingStrategy strategy = (exclusive) ? new ExclusiveMatchingStrategy() : new NonExclusiveMatchingStrategy();
+        SimilarityResult result = strategy.match(context(), weighted, symmetric);
+
+        if (monitor.isCancelled()) {
+            throw new CancelledException();
+        }
 
         // Override overall similarity result for NCD metric
         if (metric instanceof Ncd) {
             try {
-                double overallSimilarity = ((Ncd) metric).computeBinarySimilarity(program1, program2);
+                monitor.setMessage("Computing binary NCD similarity...");
+                double overallSimilarity = ((Ncd) metric).computeBinarySimilarity(program1, program2, monitor);
                 result.setOverallSimilarity(overallSimilarity);
+            } catch (CancelledException e) {
+                throw e;
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

@@ -39,4 +39,10 @@ public class GhidraMetricsToolkitPlugin extends ProgramPlugin {
         provider.handleLocationChanged();
         super.locationChanged(loc);
     }
+
+    @Override
+    protected void programDeactivated(Program program) {
+        provider.handleProgramDeactivated();
+        super.programDeactivated(program);
+    }
 }

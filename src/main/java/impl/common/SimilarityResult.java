@@ -63,7 +63,7 @@ public class SimilarityResult implements ResultInterface {
             String similarity = (m.similarity != null) ? String.format("%.2f", m.similarity) : "----";
             String function1 = (m.f1 != null) ? m.f1.getName() : "--";
             String function2 = (m.f2 != null) ? m.f2.getName() : "--";
-            functionSimilarityBuilder.append(function1).append(",").append(function2).append(",").append(similarity);
+            functionSimilarityBuilder.append(function1).append(",").append(function2).append(",").append(similarity).append("\n");
         }
         Pair<String, String> functionSimilarity = new Pair<>("Function 1,Function 2,Similarity", functionSimilarityBuilder.toString());
         exportedData.add(functionSimilarity);

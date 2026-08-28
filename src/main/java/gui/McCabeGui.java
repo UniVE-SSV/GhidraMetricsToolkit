@@ -33,7 +33,6 @@ public class McCabeGui {
         JButton button = new JButton(Icons.REFRESH_ICON);
         topPanel.add(button, BorderLayout.EAST);
 
-
         tableModelProgram = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -43,11 +42,11 @@ public class McCabeGui {
         JTable table = new JTable(tableModelProgram);
         table.setRowSorter(new TableRowSorter<>(tableModelProgram));
         JScrollPane tableScrollPane = new JScrollPane(table);
-        
+
         button.addActionListener(e -> {
             tableModelProgram.setRowCount(0);
             McCabe mcCabe = new McCabe(plugin.getCurrentProgram());
-            McCabe.Result result = (McCabe.Result) mcCabe.compute();
+            McCabe.Result result = mcCabe.compute();
             if (result == null) {
                 complexityResult.setText("N/A");
                 return;

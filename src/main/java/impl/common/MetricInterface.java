@@ -1,5 +1,5 @@
 package impl.common;
 
-public interface MetricInterface {
-    ResultInterface compute();
+public interface MetricInterface<T extends ResultInterface> {
+    T compute();
 }

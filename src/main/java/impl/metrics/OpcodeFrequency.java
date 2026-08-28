@@ -13,7 +13,7 @@ public class OpcodeFrequency implements SimilarityInterface {
 
     private static final String NAME = "Opcode Frequency Histogram";
 
-    private static double computeSimilarity(Map<String, Double> histogram_1, Map<String, Double> histogram_2) {
+    static double computeSimilarity(Map<String, Double> histogram_1, Map<String, Double> histogram_2) {
         Set<String> opcodeSet = new HashSet<>(histogram_1.keySet());
         opcodeSet.addAll(histogram_2.keySet());
 
@@ -22,7 +22,7 @@ public class OpcodeFrequency implements SimilarityInterface {
             distance += Math.pow(histogram_1.getOrDefault(opcode, 0.0) - histogram_2.getOrDefault(opcode, 0.0), 2);
         }
 
-        return 1 - distance;
+        return Math.max(0.0, Math.min(1.0, 1 - distance));
     }
 
     @Override

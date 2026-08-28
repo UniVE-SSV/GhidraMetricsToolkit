@@ -17,7 +17,7 @@ import impl.common.ResultInterface;
 import java.util.*;
 
 
-public class McCabe implements MetricInterface {
+public class McCabe implements MetricInterface<McCabe.Result> {
 
     private final Program program;
     private final boolean overallOnly;
@@ -52,7 +52,7 @@ public class McCabe implements MetricInterface {
             if (functionComplexity != null) {
                 StringBuilder functionStringBuilder = new StringBuilder();
                 for (var elem : functionComplexity) {
-                    functionStringBuilder.append(elem.first).append(",").append(elem.second);
+                    functionStringBuilder.append(elem.first).append(",").append(elem.second).append("\n");
                 }
                 Pair<String, String> functionComplexity = new Pair<>("Function,Complexity", functionStringBuilder.toString());
                 exportedData.add(functionComplexity);
@@ -170,7 +170,7 @@ public class McCabe implements MetricInterface {
     }
 
     @Override
-    public ResultInterface compute() {
+    public Result compute() {
         try {
             int complexity = computeMcCabe();
 

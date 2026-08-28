@@ -1,5 +1,6 @@
 package gui;
 
+import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Program;
 import ghidra.program.util.ProgramLocation;
@@ -10,6 +11,7 @@ import metrics.GhidraMetricsToolkitPlugin;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.util.Objects;
 
 public class HalsteadGui {
 
@@ -19,8 +21,7 @@ public class HalsteadGui {
     private final GhidraMetricsToolkitPlugin plugin;
     private final DefaultTableModel tableModelFunction;
     private final DefaultTableModel tableModelProgram;
-
-    private Function lastComputedFunction;
+    private Address lastFunctionEntry;
 
     public HalsteadGui(GhidraMetricsToolkitPlugin plugin) {
 
@@ -58,7 +59,6 @@ public class HalsteadGui {
     }
 
     public void populateFunctionTable() {
-
         ProgramLocation location = plugin.getProgramLocation();
         Function currentFunction = null;
         if (location != null) {
@@ -68,34 +68,43 @@ public class HalsteadGui {
             }
         }
 
-        if (currentFunction == null || currentFunction.equals(lastComputedFunction)) {
+        // Only recompute when the cursor moved into a different function
+        Address entryPoint = (currentFunction != null) ? currentFunction.getEntryPoint() : null;
+        if (Objects.equals(entryPoint, lastFunctionEntry)) {
             return;
         }
-        lastComputedFunction = currentFunction;
-        tableModelFunction.setRowCount(0);
+        lastFunctionEntry = entryPoint;
 
-        Halstead halstead = new Halstead(plugin.getCurrentProgram(), currentFunction);
-        Halstead.Result result = (Halstead.Result) halstead.compute();
-        if (result != null && result.functionHalstead != null) {
-            for (Pair<String, Double> row : result.functionHalstead) {
-                tableModelFunction.addRow(new Object[] {row.first, row.second});
+        tableModelFunction.setRowCount(0);
+        if (currentFunction != null) {
+            Halstead halstead = new Halstead(plugin.getCurrentProgram(), currentFunction);
+            Halstead.Result result = halstead.compute();
+            if (result != null && result.functionHalstead != null) {
+                for (Pair<String, Double> row : result.functionHalstead) {
+                    tableModelFunction.addRow(new Object[] {row.first, row.second});
+                }
             }
         }
     }
 
     public void populateProgramTable() {
-
         Program currentProgram = plugin.getCurrentProgram();
         tableModelProgram.setRowCount(0);
         if (currentProgram != null) {
             Halstead halstead = new Halstead(plugin.getCurrentProgram());
-            Halstead.Result result = (Halstead.Result) halstead.compute();
+            Halstead.Result result = halstead.compute();
             if (result != null) {
                 for (Pair<String, Double> row : result.programHalstead) {
                     tableModelProgram.addRow(new Object[] {row.first, row.second});
                 }
             }
         }
+    }
+
+    public void reset() {
+        tableModelFunction.setRowCount(0);
+        tableModelProgram.setRowCount(0);
+        lastFunctionEntry = null;
     }
 
     public JPanel getPanel() {
