@@ -29,7 +29,7 @@ import java.util.List;
 public class SimilarityGui {
 
     private static final String[] columnNames = {"Simil.", "Weight", "Current Program", "Compared Program"};
-    private static final SimilarityInterface[] metrics = {new Jaccard(), new JaroWinkler(), new Levenshtein(), new Lcs(), new Ncd(), new OpcodeFrequency()};
+    private static final SimilarityInterface[] metrics = {new Jaccard(), new JaroWinkler(), new Levenshtein(), new Lcs(), new Ncd(), new OpcodeFrequency(), new TLSH()};
 
     private final JPanel panel;
     private final GhidraTaskRunner taskRunner;
