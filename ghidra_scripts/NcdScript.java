@@ -3,17 +3,21 @@
 //@category Metrics
 
 import ghidra.app.script.GhidraScript;
+import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Program;
+import ghidra.util.task.TaskMonitor;
 import impl.common.Pair;
 import impl.metrics.Ncd;
 import impl.common.Similarity;
 import impl.common.SimilarityResult;
 import impl.utils.CsvExporter;
+import impl.utils.FunctionFilter;
 import picocli.CommandLine;
 import impl.utils.ProjectUtils;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Predicate;
 
 
 public class NcdScript extends GhidraScript {
@@ -36,6 +40,15 @@ public class NcdScript extends GhidraScript {
 
         @CommandLine.Option(names = "--weighted", description = "Use function weights")
         boolean weighted;
+
+        @CommandLine.Option(names = "--functions1", description = "File with the names of the functions of the first program to compare (one per line)")
+        String functions1;
+
+        @CommandLine.Option(names = "--functions2", description = "File with the names of the functions of the second program to compare (one per line)")
+        String functions2;
+
+        @CommandLine.Option(names = "--exclude-functions", description = "File with function names to leave out in both programs (one per line)")
+        String excludeFunctions;
     }
 
     @Override
@@ -54,6 +67,8 @@ public class NcdScript extends GhidraScript {
         boolean exclusive = false;
         boolean symmetric = false;
         boolean weighted = false;
+        Predicate<Function> filter1 = FunctionFilter.ALL;
+        Predicate<Function> filter2 = FunctionFilter.ALL;
 
         if (isRunningHeadless()) {
             ScriptArgs args = new ScriptArgs();
@@ -66,6 +81,8 @@ public class NcdScript extends GhidraScript {
             exclusive = args.exclusive;
             symmetric = args.symmetric;
             weighted = args.weighted;
+            filter1 = FunctionFilter.fromFiles(args.functions1, args.excludeFunctions);
+            filter2 = FunctionFilter.fromFiles(args.functions2, args.excludeFunctions);
 
         } else {
             program2 = askProgram("Pick second program");
@@ -77,7 +94,7 @@ public class NcdScript extends GhidraScript {
         }
 
         if (!binaryOnly) {
-            Similarity ncdSimilarity = new Similarity(currentProgram, program2, new Ncd());
+            Similarity ncdSimilarity = new Similarity(currentProgram, program2, new Ncd(), filter1, filter2, TaskMonitor.DUMMY);
             SimilarityResult result = ncdSimilarity.getOverallSimilarity(exclusive, weighted, symmetric);
 
             if (result == null) {
