@@ -21,6 +21,7 @@ public class OpcodeFrequency implements SimilarityInterface {
         for (String opcode : opcodeSet) {
             distance += Math.pow(histogram_1.getOrDefault(opcode, 0.0) - histogram_2.getOrDefault(opcode, 0.0), 2);
         }
+        distance = Math.sqrt(distance);
 
         return Math.max(0.0, Math.min(1.0, 1 - distance));
     }
