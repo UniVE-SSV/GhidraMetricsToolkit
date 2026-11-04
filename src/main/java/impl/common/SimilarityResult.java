@@ -71,6 +71,37 @@ public class SimilarityResult implements ResultInterface {
         return exportedData;
     }
 
+    /**
+     * Exports the function matches with full precision, one row per entry of the
+     * matching. The rows start with the program names, so that the results of
+     * several comparisons can be appended to the same file. Unmatched functions
+     * (exclusive matching) have empty partner columns.
+     */
+    public Pair<String, String> exportFunctionMatches() {
+        StringBuilder rows = new StringBuilder();
+        for (FunctionSimilarity m : functionSimilarities) {
+            if (rows.length() > 0) {
+                rows.append("\n");
+            }
+            rows.append(csvField(program1.getName())).append(",")
+                    .append(csvField(program2.getName())).append(",")
+                    .append((m.f1 != null) ? csvField(m.f1.getName()) : "").append(",")
+                    .append((m.f1 != null) ? m.f1.getEntryPoint() : "").append(",")
+                    .append((m.f2 != null) ? csvField(m.f2.getName()) : "").append(",")
+                    .append((m.f2 != null) ? m.f2.getEntryPoint() : "").append(",")
+                    .append((m.similarity != null) ? m.similarity : "").append(",")
+                    .append((m.weight != null) ? m.weight : "");
+        }
+        return new Pair<>("Program 1,Program 2,Function 1,Entry 1,Function 2,Entry 2,Similarity,Weight", rows.toString());
+    }
+
+    private static String csvField(String value) {
+        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
+    }
+
     @Override
     public String toString() {
         StringBuilder output = new StringBuilder();

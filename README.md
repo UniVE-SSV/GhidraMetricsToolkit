@@ -83,3 +83,5 @@ Headless Parameters:
 ## Exporting
 
 To export data, use the `--csv-export <path>` option in headless mode, with any metric. Appending to the same file in multiple runs is allowed.
+
+For the binary similarity metrics, `--csv-export` writes the overall similarity. The `--csv-matches <path>` option additionally exports the function matching, one row per match with the program names, the names and entry points of both functions, their similarity and, with `--weighted`, the weight of the first function.

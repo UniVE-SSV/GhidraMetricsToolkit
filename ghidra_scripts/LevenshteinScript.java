@@ -20,6 +20,9 @@ public class LevenshteinScript extends GhidraScript {
         @CommandLine.Option(names = "--csv-export", description = "CSV file path to export result")
         String csvPath;
 
+        @CommandLine.Option(names = "--csv-matches", description = "CSV file path to export the function matches")
+        String csvMatchesPath;
+
         @CommandLine.Option(names = "--exclusive", description = "Use exclusive function matching strategy")
         boolean exclusive;
 
@@ -39,6 +42,7 @@ public class LevenshteinScript extends GhidraScript {
 
         Program program2;
         String csvPath = null;
+        String csvMatchesPath = null;
         boolean exclusive = false;
         boolean symmetric = false;
         boolean weighted = false;
@@ -49,6 +53,7 @@ public class LevenshteinScript extends GhidraScript {
             cmd.parseArgs(getScriptArgs());
             program2 = ProjectUtils.getProgramByName(state.getProject(), args.programName);
             csvPath = args.csvPath;
+            csvMatchesPath = args.csvMatchesPath;
             exclusive = args.exclusive;
             symmetric = args.symmetric;
             weighted = args.weighted;
@@ -72,6 +77,18 @@ public class LevenshteinScript extends GhidraScript {
                 Pair<String, String> binaryResult = out.get(0);
                 CsvExporter csvExporter = new CsvExporter(csvPath, binaryResult.first);
                 csvExporter.exportData(binaryResult.second);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        if (csvMatchesPath != null) {
+            try {
+                Pair<String, String> matches = result.exportFunctionMatches();
+                if (!matches.second.isEmpty()) {
+                    CsvExporter csvExporter = new CsvExporter(csvMatchesPath, matches.first);
+                    csvExporter.exportData(matches.second);
+                }
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
