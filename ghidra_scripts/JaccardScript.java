@@ -5,6 +5,7 @@ import impl.metrics.Jaccard;
 import impl.common.Similarity;
 import impl.common.SimilarityResult;
 import impl.utils.CsvExporter;
+import impl.utils.OperandMode;
 import picocli.CommandLine;
 import impl.utils.ProjectUtils;
 
@@ -28,6 +29,9 @@ public class JaccardScript extends GhidraScript {
 
         @CommandLine.Option(names = "--weighted", description = "Use function weights")
         boolean weighted;
+
+        @CommandLine.Option(names = "--operands", description = "Operands in the compared listing: full (default), masked (addresses replaced) or none (mnemonics only)")
+        String operands = "full";
     }
 
     @Override
@@ -42,6 +46,7 @@ public class JaccardScript extends GhidraScript {
         boolean exclusive = false;
         boolean symmetric = false;
         boolean weighted = false;
+        OperandMode operandMode = OperandMode.FULL;
 
         if (isRunningHeadless()) {
             ScriptArgs args = new ScriptArgs();
@@ -52,6 +57,7 @@ public class JaccardScript extends GhidraScript {
             exclusive = args.exclusive;
             symmetric = args.symmetric;
             weighted = args.weighted;
+            operandMode = OperandMode.fromString(args.operands);
         } else {
             program2 = askProgram("Pick second program");
         }
@@ -61,7 +67,7 @@ public class JaccardScript extends GhidraScript {
             return;
         }
 
-        Similarity jaccardSimilarity = new Similarity(currentProgram, program2, new Jaccard());
+        Similarity jaccardSimilarity = new Similarity(currentProgram, program2, new Jaccard(operandMode));
         SimilarityResult result = jaccardSimilarity.getOverallSimilarity(exclusive, weighted, symmetric);
         result.sortBySimilarity();
         print(result.toString());

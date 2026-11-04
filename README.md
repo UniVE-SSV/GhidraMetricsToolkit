@@ -67,6 +67,7 @@ Headless Parameters:
 - `--exclusive`;
 - `--weighted`;
 - `--symmetric`.
+- `--operands <full|masked|none>`: how the operands take part in the listing-based metrics (Jaccard, Jaro-Winkler, LCS, Levenshtein). `full` (default) compares the instructions as Ghidra shows them, including absolute addresses. `masked` replaces addresses, and constants of operands that reference memory, by `ADDR`, so that code that was only moved still matches. `none` only compares the mnemonics.
 
 ### ROP Gadget Survival
 
