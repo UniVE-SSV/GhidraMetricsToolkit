@@ -9,6 +9,7 @@ import impl.metrics.Lcs;
 import impl.common.Similarity;
 import impl.common.SimilarityResult;
 import impl.utils.CsvExporter;
+import impl.utils.OperandMode;
 import picocli.CommandLine;
 import picocli.CommandLine.Parameters;
 import impl.utils.ProjectUtils;
@@ -33,6 +34,9 @@ public class LcsScript extends GhidraScript {
 
         @CommandLine.Option(names = "--weighted", description = "Use function weights")
         boolean weighted;
+
+        @CommandLine.Option(names = "--operands", description = "Operands in the compared listing: full (default), masked (addresses replaced) or none (mnemonics only)")
+        String operands = "full";
     }
 
     @Override
@@ -48,6 +52,7 @@ public class LcsScript extends GhidraScript {
         boolean exclusive = false;
         boolean symmetric = false;
         boolean weighted = false;
+        OperandMode operandMode = OperandMode.FULL;
 
         if (isRunningHeadless()) {
             ScriptArgs args = new ScriptArgs();
@@ -58,6 +63,7 @@ public class LcsScript extends GhidraScript {
             exclusive = args.exclusive;
             symmetric = args.symmetric;
             weighted = args.weighted;
+            operandMode = OperandMode.fromString(args.operands);
         } else {
             program2 = askProgram("Pick second program");
         }
@@ -67,7 +73,7 @@ public class LcsScript extends GhidraScript {
             return;
         }
 
-        Similarity lcs = new Similarity(currentProgram, program2, new Lcs());
+        Similarity lcs = new Similarity(currentProgram, program2, new Lcs(operandMode));
         SimilarityResult result = lcs.getOverallSimilarity(exclusive, weighted, symmetric);
         result.sortBySimilarity();
         print(result.toString());

@@ -1,11 +1,15 @@
 package impl.utils;
 
+import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.CodeUnit;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.FunctionIterator;
+import ghidra.program.model.listing.Instruction;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.mem.Memory;
 import ghidra.program.model.mem.MemoryAccessException;
+import ghidra.program.model.scalar.Scalar;
+import ghidra.program.model.symbol.Reference;
 import ghidra.program.model.symbol.SourceType;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.util.exception.InvalidInputException;
@@ -20,15 +24,77 @@ import java.util.Map;
 public class FunctionUtils {
 
     public static SimilarityListingInput getSimilarityListingInput(Function function) {
-        return new SimilarityListingInput(getOpcodeListing(function));
+        return getSimilarityListingInput(function, OperandMode.FULL);
+    }
+
+    public static SimilarityListingInput getSimilarityListingInput(Function function, OperandMode operandMode) {
+        return new SimilarityListingInput(getOpcodeListing(function, operandMode));
     }
 
     public static List<String> getOpcodeListing(Function function) {
+        return getOpcodeListing(function, OperandMode.FULL);
+    }
+
+    public static List<String> getOpcodeListing(Function function, OperandMode operandMode) {
         List<String> listing = new ArrayList<>();
         for (CodeUnit cb : function.getProgram().getListing().getCodeUnits(function.getBody(), true)) {
-            listing.add(cb.toString());
+            listing.add(codeUnitString(cb, operandMode));
         }
         return listing;
+    }
+
+    private static String codeUnitString(CodeUnit codeUnit, OperandMode operandMode) {
+        switch (operandMode) {
+            case NONE:
+                return codeUnit.toString().split(" ")[0];
+            case MASKED:
+                return (codeUnit instanceof Instruction) ? maskedInstructionString((Instruction) codeUnit) : codeUnit.toString();
+            default:
+                return codeUnit.toString();
+        }
+    }
+
+    // Same layout as InstructionDB.toString(), but operand elements that are addresses
+    // (or scalars of an operand with a memory reference) are replaced by ADDR. Stack
+    // offsets, other constants and registers stay.
+    private static String maskedInstructionString(Instruction instruction) {
+        StringBuilder builder = new StringBuilder(instruction.getMnemonicString());
+        int n = instruction.getNumOperands();
+        String separator = instruction.getSeparator(0);
+        if (separator != null || n != 0) {
+            builder.append(' ');
+        }
+        if (separator != null) {
+            builder.append(separator);
+        }
+        for (int i = 0; i < n; i++) {
+            builder.append(maskedOperandString(instruction, i));
+            separator = instruction.getSeparator(i + 1);
+            if (separator != null) {
+                builder.append(separator);
+            }
+        }
+        return builder.toString();
+    }
+
+    private static String maskedOperandString(Instruction instruction, int opIndex) {
+        List<Object> elements = instruction.getDefaultOperandRepresentationList(opIndex);
+        if (elements == null) {
+            return instruction.getDefaultOperandRepresentation(opIndex);
+        }
+        boolean memoryReference = false;
+        for (Reference reference : instruction.getOperandReferences(opIndex)) {
+            memoryReference |= reference.isMemoryReference();
+        }
+        StringBuilder builder = new StringBuilder();
+        for (Object element : elements) {
+            if (element instanceof Address || (memoryReference && element instanceof Scalar)) {
+                builder.append("ADDR");
+            } else {
+                builder.append(element);
+            }
+        }
+        return builder.toString();
     }
 
     public static byte[] getFunctionBytes(Function function) {
