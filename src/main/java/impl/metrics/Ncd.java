@@ -11,12 +11,17 @@ import impl.utils.LrzipWrapper;
 import impl.utils.ProjectUtils;
 
 import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
 
 
 public class Ncd implements SimilarityInterface {
 
     private static final String NAME = "Normalized Compression Distance";
     private final String lrzipPath;
+    // Compressed size of each function, so that every function is compressed only
+    // once instead of once per function pair
+    private final Map<Function, Long> compressedSizes = new HashMap<>();
 
     public Ncd() {
         try {
@@ -67,14 +72,23 @@ public class Ncd implements SimilarityInterface {
 
         LrzipWrapper lrzipWrapper = new LrzipWrapper(lrzipPath);
         try {
-            long size1 = lrzipWrapper.measure(f1Bytes);
-            long size2 = lrzipWrapper.measure(f2Bytes);
+            long size1 = compressedSize(function1, f1Bytes, lrzipWrapper);
+            long size2 = compressedSize(function2, f2Bytes, lrzipWrapper);
             long sizeConcat = lrzipWrapper.measure(f1Bytes, f2Bytes);
 
             return clamp01(1 - (double) (sizeConcat - Math.min(size1, size2)) / Math.max(size1, size2));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private long compressedSize(Function function, byte[] bytes, LrzipWrapper lrzipWrapper) throws Exception {
+        Long size = compressedSizes.get(function);
+        if (size == null) {
+            size = lrzipWrapper.measure(bytes);
+            compressedSizes.put(function, size);
+        }
+        return size;
     }
 
     @Override
