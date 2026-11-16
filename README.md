@@ -51,6 +51,7 @@ Several function level similarity metrics are provided:
 - Levenshtein Distance
 - Jaro-Winkler Similarity
 - Jaccard Index
+- TLSH (Trend Micro Locality Sensitive Hash of the function bytes)
 
 The Normalized Compression Distance metric uses the built-in `lrzip` binary to compress the programs, and is therefore only available on linux x86-64 and arm64 platforms.
 
