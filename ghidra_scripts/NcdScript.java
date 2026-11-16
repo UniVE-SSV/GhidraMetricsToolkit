@@ -25,6 +25,9 @@ public class NcdScript extends GhidraScript {
         @CommandLine.Option(names = "--csv-export", description = "CSV file path to export result")
         String csvPath;
 
+        @CommandLine.Option(names = "--csv-matches", description = "CSV file path to export the function matches")
+        String csvMatchesPath;
+
         @CommandLine.Option(names = "--binary-only", description = "Only compute overall binary similarity")
         boolean binaryOnly;
 
@@ -50,6 +53,7 @@ public class NcdScript extends GhidraScript {
 
         Program program2;
         String csvPath = null;
+        String csvMatchesPath = null;
         boolean binaryOnly = false;
         boolean exclusive = false;
         boolean symmetric = false;
@@ -62,6 +66,7 @@ public class NcdScript extends GhidraScript {
 
             program2 = ProjectUtils.getProgramByName(state.getProject(), args.programName);
             csvPath = args.csvPath;
+            csvMatchesPath = args.csvMatchesPath;
             binaryOnly = args.binaryOnly;
             exclusive = args.exclusive;
             symmetric = args.symmetric;
@@ -94,6 +99,18 @@ public class NcdScript extends GhidraScript {
                     Pair<String, String> binaryResult = out.get(0);
                     CsvExporter csvExporter = new CsvExporter(csvPath, binaryResult.first);
                     csvExporter.exportData(binaryResult.second);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            if (csvMatchesPath != null) {
+                try {
+                    Pair<String, String> matches = result.exportFunctionMatches();
+                    if (!matches.second.isEmpty()) {
+                        CsvExporter csvExporter = new CsvExporter(csvMatchesPath, matches.first);
+                        csvExporter.exportData(matches.second);
+                    }
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
