@@ -5,9 +5,11 @@ import ghidra.program.model.listing.Program;
 import ghidra.util.exception.CancelledException;
 import ghidra.util.task.TaskMonitor;
 import impl.metrics.Ncd;
+import impl.utils.FunctionFilter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 public class Similarity {
 
@@ -26,6 +28,15 @@ public class Similarity {
     }
 
     public Similarity(Program program1, Program program2, SimilarityInterface metric, TaskMonitor monitor) throws CancelledException {
+        this(program1, program2, metric, FunctionFilter.ALL, FunctionFilter.ALL, monitor);
+    }
+
+    /**
+     * Only the functions accepted by filter1 (program1) and filter2 (program2) are
+     * compared and weighted, in addition to skipping external and thunk functions.
+     */
+    public Similarity(Program program1, Program program2, SimilarityInterface metric,
+                      Predicate<Function> filter1, Predicate<Function> filter2, TaskMonitor monitor) throws CancelledException {
 
         this.program1 = program1;
         this.program2 = program2;
@@ -40,7 +51,7 @@ public class Similarity {
         // Get functions of program1 and their size
         long totalWeight = 0;
         for (Function f1 : program1.getFunctionManager().getFunctions(true)) {
-            if (f1.isExternal() || f1.isThunk()) continue;
+            if (f1.isExternal() || f1.isThunk() || !filter1.test(f1)) continue;
 
             functions1.add(f1);
             long size = f1.getBody().getNumAddresses();
@@ -57,7 +68,7 @@ public class Similarity {
         // Get functions of program2 and their size
         totalWeight = 0;
         for (Function f2 : program2.getFunctionManager().getFunctions(true)) {
-            if (f2.isExternal() || f2.isThunk()) continue;
+            if (f2.isExternal() || f2.isThunk() || !filter2.test(f2)) continue;
 
             functions2.add(f2);
             long size = f2.getBody().getNumAddresses();

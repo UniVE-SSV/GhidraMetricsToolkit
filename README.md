@@ -67,6 +67,10 @@ Headless Parameters:
 - `--exclusive`;
 - `--weighted`;
 - `--symmetric`.
+- `--functions1 <file>`, `--functions2 <file>`: only compare these functions of the first or second program (one name per line);
+- `--exclude-functions <file>`: leave out these functions in both programs (one name per line). For example, the symbols of a statically linked library (`nm --defined-only --format=just-symbols libfoo.a`) restrict the comparison to the program's own code.
+
+The function filters change the compared functions and their weights. The overall NCD value is always computed on the whole files.
 
 ### ROP Gadget Survival
 
